@@ -35,7 +35,11 @@
   .pill { background: var(--panel); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .pill b { color: var(--gold); font-weight: 800; }
   .pill.mayor b { font-family: var(--font-display); }
-  #mode { pointer-events: auto; margin-left: auto; background: var(--panel-solid); color: var(--text); border: 2px solid var(--line); border-radius: 999px; padding: 5px 12px; font: 800 13px var(--font-body); cursor: pointer; }
+  #pause { pointer-events: auto; margin-left: auto; background: var(--panel-solid); color: var(--text); border: 2px solid var(--line); border-radius: 999px; padding: 5px 12px; font: 800 13px var(--font-body); cursor: pointer; }
+  #pause:hover, #pause:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
+  #pause[aria-pressed="true"] { background: var(--gold); color: var(--panel-solid); border-color: var(--gold); }
+  body.mobile #pause { font-size: 11px; padding: 4px 9px; }
+  #mode { pointer-events: auto; background: var(--panel-solid); color: var(--text); border: 2px solid var(--line); border-radius: 999px; padding: 5px 12px; font: 800 13px var(--font-body); cursor: pointer; }
   #mode:hover, #mode:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
   #title { top: calc(56px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); pointer-events: none; }
   #title h1 { margin: 0; font: 600 26px/1 var(--font-display); color: var(--text); text-shadow: 0 2px 0 rgba(34, 30, 48, 0.55); text-wrap: balance; }
@@ -94,22 +98,24 @@
 <div id="hud" class="ui">
   <div class="pill">CITIZENS <b>56</b></div>
   <div class="pill">MAYORS <b>2</b></div>
-  <div class="pill">CITY FUND <b>232K</b></div>
-  <div class="pill mayor">👑 @coco.fi13 <b>1.42M</b></div>
-  <div class="pill mayor">👑 @yourfav_lan12 <b>612K</b></div>
+  <div class="pill">CITY FUND <b>7K</b></div>
+  <div class="pill mayor">👑 @coco.fi13 <b>966K</b></div>
+  <div class="pill mayor">👑 @yourfav_lan12 <b>662K</b></div>
+  <button id="pause" type="button" aria-pressed="false">⏸ Pause</button>
   <button id="mode" type="button">📱 Handy</button>
 </div>
-<div id="title" class="ui"><h1>Follower-Stadt</h1><p>Part 7 · @thefolowercity</p></div>
+<div id="title" class="ui"><h1>Follower-Stadt</h1><p>Part 8 · @thefolowercity</p></div>
 <div id="help" class="ui">
   <b>Maus ziehen</b>: umschauen<br>
   <b>Mausrad</b>: vor / zurück · <b>Rechte Maus</b>: schieben<br>
   <b>W A S D</b>: fliegen · <b>E</b>: hoch · <b>Shift</b>: runter<br>
-  <b>Q</b> halten: schneller · <b>T</b>: Namen an/aus
+  <b>Q</b> halten: schneller · <b>T</b>: Namen an/aus<br>
+  <b>P</b> oder <b>Leertaste</b>: Pause
 </div>
 <div id="stick" class="ui" aria-label="Joystick zum Fliegen"><div id="knob"></div></div>
 <div id="updown" class="ui"><button id="up" type="button" aria-label="hoch">▲ hoch</button><button id="down" type="button" aria-label="runter">▼ runter</button></div>
 <nav id="menu" class="ui" aria-label="Orte"></nav>
-<div id="load">Stadt wird gebaut…<small>56 Häuser, 2 Inseln, 1 Rennstrecke</small></div>
+<div id="load">Stadt wird gebaut…<small>56 Häuser, 2 Inseln, Basketball, Fußball, Big Bass Shop</small></div>
 
 <script type="module">
 import * as THREE from "three";
@@ -124,7 +130,9 @@ const modeBtn = document.getElementById("mode");
 const canvas = document.getElementById("c");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false;     // Schatten bewegen sich nicht -> nur einmal berechnen (viel weniger Ruckeln)
+let dirty = true;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -221,9 +229,11 @@ scene.add(bed);
 function applyMode() {
   document.body.classList.toggle("mobile", mobile);
   modeBtn.textContent = mobile ? "💻 PC-Modus" : "📱 Handy-Modus";
-  renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.25 : 2));
-  const sz = mobile ? 1024 : 4096;
-  renderer.shadowMap.type = mobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1 : 1.5));
+  const sz = mobile ? 1024 : 2048;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.needsUpdate = true;
+  dirty = true;
   if (sun.shadow.mapSize.x !== sz) {
     sun.shadow.mapSize.set(sz, sz);
     if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
@@ -235,6 +245,7 @@ modeBtn.addEventListener("click", () => { mobile = !mobile; store.set("modus", m
 
 const B = (x, y, z = 0) => new THREE.Vector3(x, z, -y);
 function resize() {
+  dirty = true;
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
   labels.setSize(w, h);
@@ -258,10 +269,15 @@ const world = gltf.scene;
 world.traverse((o) => {
   if (o.isMesh) {
     o.castShadow = true; o.receiveShadow = true;
-    for (const m of [].concat(o.material)) { m.flatShading = true; m.needsUpdate = true; }
+    for (const m of [].concat(o.material)) { m.flatShading = true; if (m.metalness > 0.5) { m.metalness = 0.25; m.roughness = 0.4; } m.needsUpdate = true; }   // Gold sonst fast braun (keine Spiegelung)
   }
 });
 scene.add(world);
+for (const n of ["car0", "car1", "car2", "car3", "rider", "rope", "kid", "spray", "rotor"]) {
+  const o = world.getObjectByName(n);
+  if (o) o.traverse((c) => { if (c.isMesh) c.castShadow = false; });
+}
+renderer.shadowMap.needsUpdate = true;
 document.getElementById("load").remove();
 
 const S = info.S;
@@ -288,6 +304,7 @@ const rider = world.getObjectByName("rider");
 const rope = world.getObjectByName("rope");
 const kid = world.getObjectByName("kid");
 const spray = world.getObjectByName("spray");
+const rotor = world.getObjectByName("rotor");
 for (let k = 0; k < 3; k++) { const r = world.getObjectByName("lampR" + k); if (r) r.visible = false; }
 
 function ovalPt(th, off) {
@@ -346,6 +363,7 @@ function riderState(s) {
   return { x: CP.x + qx, y: CP.y + qy, z, flip, h: hd + yaw };
 }
 function animate(t) {
+  if (rotor) rotor.rotation.y = t * 9;
   cars.forEach((c, k) => {
     if (!c) return;
     const st = carState(k, t);
@@ -381,11 +399,17 @@ function animate(t) {
 
 // ---------- Orte ----------
 const GH = toB(info.gh), BAK = toB(info.bakery), BURJ = toB(info.burj);
+const BB = toB(info.bb), FB = toB(info.fb), BS = toB(info.bs), VI = toB(info.villa), GU = toB(info.gu);
 const PLACES = [
   ["🏙️ Ganze Stadt", gb(26, -42, 95), gb(-3, 12, 0)],
   ["🏛️ Rathaus", gb(5, -7, 12), gb(0, 0, 1.5)],
   ["🏝️ Neue Insel", gb(14, 18, 26), B(NI.x, NI.y, 0)],
   ["🏁 Rennstrecke", gb(-4.5, 32.4, 2.6), gb(2.5, 30.6, 0.5)],
+  ["🏀 Basketball", B(BB.x - 0.6, BB.y - 5.4, 2.6), B(BB.x + 1.2, BB.y, 1.0)],
+  ["⚽ Fußball", B(FB.x + 0.6, FB.y - 5.2, 2.4), B(FB.x - 2.2, FB.y, 0.3)],
+  ["🎣 Big Bass Shop", B(BS.x + 10, BS.y - 4.5, 2.8), B(BS.x + 1, BS.y, 1.8)],
+  ["🚁 Villa coco", B(VI.x + 2.5, VI.y + 7, 10.5), B(VI.x, VI.y, 4.8)],
+  ["🏠 guransh", B(GU.x + 2.6, GU.y + 7.5, 4), B(GU.x, GU.y, 2.2)],
   ["🏰 Guard Hill", B(GH.x + 26, GH.y - 22, 16), B(GH.x, GH.y, 2)],
   ["🥐 Bäckerei", B(BAK.x + 0.2, BAK.y - 5.5, BAK.z + 3.2), B(BAK.x, BAK.y, BAK.z + 1.2)],
   ["🗼 Burj Khalifa", B(BURJ.x + 1.2, BURJ.y + 2.4, 0.9), B(BURJ.x, BURJ.y, 0.3)],
@@ -411,7 +435,7 @@ lookAtPoint(PLACES[0][2]);
 
 // ---------- Steuerung: Tastatur (PC) ----------
 const keys = new Set();
-addEventListener("keydown", (e) => { const k = e.key.toLowerCase(); keys.add(k); if (k === "t") showTags = !showTags; });
+addEventListener("keydown", (e) => { const k = e.key.toLowerCase(); keys.add(k); if (k === "t") { showTags = !showTags; dirty = true; } });
 addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
 addEventListener("blur", () => keys.clear());
 
@@ -441,12 +465,28 @@ for (const id of ["up", "down"]) {
   el.addEventListener("pointercancel", on(false));
 }
 
+// ---------- Pause: alles bleibt stehen ----------
+const pauseBtn = document.getElementById("pause");
+let paused = false, simT = 0;
+function setPause(v) {
+  paused = v;
+  pauseBtn.textContent = paused ? "▶ Weiter" : "⏸ Pause";
+  pauseBtn.setAttribute("aria-pressed", String(paused));
+  dirty = true;
+}
+pauseBtn.addEventListener("click", () => setPause(!paused));
+addEventListener("keydown", (e) => {
+  if (e.key === "p" || e.key === "P" || e.code === "Space") { if (e.code === "Space") e.preventDefault(); if (!e.repeat) setPause(!paused); }
+});
+
 // ---------- Schleife ----------
 const clock = new THREE.Clock();
+const lastPos = new THREE.Vector3(), lastRot = new THREE.Euler();
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), mv = new THREE.Vector3();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
-  const t = clock.elapsedTime;
+  if (!paused) simT += dt;
+  const t = simT;
   if (fly) {
     fly.t += dt / 1.4;
     const u = smooth(fly.t);
@@ -479,7 +519,12 @@ renderer.setAnimationLoop(() => {
     look.pitch += (look.tPitch - look.pitch) * a;
   }
   camera.rotation.set(look.pitch, look.yaw, 0);
-  animate(t);
+  // in der Pause nur neu zeichnen, wenn sich die Kamera bewegt
+  const moved = !camera.position.equals(lastPos) || Math.abs(camera.rotation.x - lastRot.x) > 1e-5 || Math.abs(camera.rotation.y - lastRot.y) > 1e-5;
+  lastPos.copy(camera.position); lastRot.copy(camera.rotation);
+  if (paused && !moved && !dirty) return;
+  dirty = false;
+  if (!paused) animate(t);
   const near = mobile ? 26 : 45;
   for (const o of tagObjs) {
     const d = o.position.distanceTo(camera.position);
