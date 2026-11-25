@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Follower-Stadt 3D</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@600;800&display=swap">
@@ -23,8 +23,9 @@
     color-scheme: dark;
   }
   html, body { height: 100%; overflow: hidden; }
-  body { background: var(--sky); color: var(--text); font-family: var(--font-body); -webkit-user-select: none; user-select: none; touch-action: none; }
-  #c { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+  body { background: var(--sky); color: var(--text); font-family: var(--font-body); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+  #c { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+  button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   .ui { position: fixed; z-index: 3; }
   #hud {
     top: calc(10px + env(safe-area-inset-top, 0px));
@@ -58,7 +59,10 @@
   #stick, #updown { display: none; }
   body.mobile #help { display: none; }
   body.mobile #title { display: none; }
-  body.mobile .pill { font-size: 11px; padding: 4px 9px; }
+  body.mobile .pill { font-size: 10px; padding: 3px 8px; }
+  body.mobile #hud { gap: 4px; }
+  body.mobile #mode { font-size: 11px; padding: 4px 9px; }
+  body.mobile .tag { font-size: 11px; padding: 2px 7px; }
   body.mobile #menu {
     flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
     padding-bottom: 2px; touch-action: pan-x;
@@ -98,9 +102,9 @@
 <div id="title" class="ui"><h1>Follower-Stadt</h1><p>Part 7 · @thefolowercity</p></div>
 <div id="help" class="ui">
   <b>Maus ziehen</b>: umschauen<br>
-  <b>Rechte Maus</b>: schieben · <b>Mausrad</b>: zoomen<br>
-  <b>W A S D</b>: fliegen · <b>Q / E</b>: runter / hoch<br>
-  <b>Shift</b>: schneller · <b>T</b>: Namen an/aus
+  <b>Mausrad</b>: vor / zurück · <b>Rechte Maus</b>: schieben<br>
+  <b>W A S D</b>: fliegen · <b>E</b>: hoch · <b>Shift</b>: runter<br>
+  <b>Q</b> halten: schneller · <b>T</b>: Namen an/aus
 </div>
 <div id="stick" class="ui" aria-label="Joystick zum Fliegen"><div id="knob"></div></div>
 <div id="updown" class="ui"><button id="up" type="button" aria-label="hoch">▲ hoch</button><button id="down" type="button" aria-label="runter">▼ runter</button></div>
@@ -110,7 +114,6 @@
 <script type="module">
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
 // ---------- Modus: PC oder Handy ----------
@@ -145,12 +148,58 @@ scene.fog = new THREE.Fog(0x8cc4ff, 140, 420);
 }
 
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.maxPolarAngle = Math.PI * 0.495;
-controls.minDistance = 1.5;
-controls.maxDistance = 400;
+// ---------- Umschauen wie in einem Spiel: Kamera dreht sich um sich selbst ----------
+camera.rotation.order = "YXZ";
+const UP = new THREE.Vector3(0, 1, 0);
+let fly = null;
+const look = { yaw: 0, pitch: -0.5, tYaw: 0, tPitch: -0.5 };
+const _d = new THREE.Vector3();
+function lookAtPoint(p) {
+  _d.copy(p).sub(camera.position).normalize();
+  look.tYaw = look.yaw = Math.atan2(-_d.x, -_d.z);
+  look.tPitch = look.pitch = Math.asin(Math.max(-1, Math.min(1, _d.y)));
+}
+const ptrs = new Map();
+let pinch = 0;
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+canvas.addEventListener("pointerdown", (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, b: e.button });
+  fly = null;
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); }
+});
+canvas.addEventListener("pointermove", (e) => {
+  const p = ptrs.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (ptrs.size === 1) {
+    if (p.b === 2) {                       // rechte Maus: schieben
+      camera.getWorldDirection(_d);
+      const r = new THREE.Vector3().crossVectors(_d, UP).normalize();
+      camera.position.addScaledVector(r, -dx * 0.05).addScaledVector(UP, dy * 0.05);
+    } else {
+      const k = e.pointerType === "touch" ? 0.0055 : 0.0035;
+      look.tYaw -= dx * k;
+      look.tPitch = Math.max(-1.5, Math.min(1.5, look.tPitch - dy * k));
+    }
+  } else if (ptrs.size === 2) {           // zwei Finger: vor / zurueck
+    const [a, b] = [...ptrs.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    camera.getWorldDirection(_d);
+    camera.position.addScaledVector(_d, (d - pinch) * 0.12);
+    pinch = d;
+  }
+});
+const ptrEnd = (e) => ptrs.delete(e.pointerId);
+canvas.addEventListener("pointerup", ptrEnd);
+canvas.addEventListener("pointercancel", ptrEnd);
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  fly = null;
+  camera.getWorldDirection(_d);
+  camera.position.addScaledVector(_d, -e.deltaY * 0.04);
+}, { passive: false });
 
 scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x6a8f4a, 1.1));
 const sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
@@ -172,8 +221,9 @@ scene.add(bed);
 function applyMode() {
   document.body.classList.toggle("mobile", mobile);
   modeBtn.textContent = mobile ? "💻 PC-Modus" : "📱 Handy-Modus";
-  renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2));
-  const sz = mobile ? 2048 : 4096;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.25 : 2));
+  const sz = mobile ? 1024 : 4096;
+  renderer.shadowMap.type = mobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   if (sun.shadow.mapSize.x !== sz) {
     sun.shadow.mapSize.set(sz, sz);
     if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
@@ -295,7 +345,6 @@ function riderState(s) {
   }
   return { x: CP.x + qx, y: CP.y + qy, z, flip, h: hd + yaw };
 }
-const UP = new THREE.Vector3(0, 1, 0);
 function animate(t) {
   cars.forEach((c, k) => {
     if (!c) return;
@@ -345,21 +394,20 @@ const PLACES = [
   ["🏨 Hotel", gb(4.6, 7.5, 6), gb(9, 3.6, 5)],
   ["🌳 Baumhaus", gb(5.5, 8.5, 7), gb(1.9, 4.9, 1.6)],
 ];
-let fly = null;
 const menu = document.getElementById("menu");
 PLACES.forEach(([name, pos, tgt], i) => {
   const b = document.createElement("button");
   b.type = "button";
   b.textContent = name;
   b.addEventListener("click", () => {
-    fly = { p0: camera.position.clone(), q0: controls.target.clone(), p1: pos.clone(), q1: tgt.clone(), t: 0 };
+    camera.getWorldDirection(_d);
+    fly = { p0: camera.position.clone(), q0: camera.position.clone().addScaledVector(_d, camera.position.distanceTo(tgt)), p1: pos.clone(), q1: tgt.clone(), t: 0 };
     menu.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
   });
   menu.appendChild(b);
 });
 camera.position.copy(mobile && innerHeight > innerWidth ? gb(22, -52, 120) : PLACES[0][1]);
-controls.target.copy(PLACES[0][2]);
-controls.update();
+lookAtPoint(PLACES[0][2]);
 
 // ---------- Steuerung: Tastatur (PC) ----------
 const keys = new Set();
@@ -378,7 +426,7 @@ function joyMove(e) {
   knob.style.transform = `translate(${dx}px, ${dy}px)`;
   joy.x = dx / max; joy.y = dy / max;
 }
-stick.addEventListener("pointerdown", (e) => { joy.id = e.pointerId; stick.setPointerCapture(e.pointerId); joyMove(e); e.preventDefault(); });
+stick.addEventListener("pointerdown", (e) => { e.stopPropagation(); joy.id = e.pointerId; stick.setPointerCapture(e.pointerId); joyMove(e); e.preventDefault(); });
 stick.addEventListener("pointermove", (e) => { if (e.pointerId === joy.id) joyMove(e); });
 const joyEnd = (e) => { if (e.pointerId !== joy.id) return; joy.id = null; joy.x = joy.y = 0; knob.style.transform = ""; };
 stick.addEventListener("pointerup", joyEnd);
@@ -403,7 +451,7 @@ renderer.setAnimationLoop(() => {
     fly.t += dt / 1.4;
     const u = smooth(fly.t);
     camera.position.lerpVectors(fly.p0, fly.p1, u);
-    controls.target.lerpVectors(fly.q0, fly.q1, u);
+    lookAtPoint(new THREE.Vector3().lerpVectors(fly.q0, fly.q1, u));
     if (fly.t >= 1) fly = null;
   }
   camera.getWorldDirection(fwd);
@@ -415,20 +463,24 @@ renderer.setAnimationLoop(() => {
   if (keys.has("d")) mv.add(right);
   if (keys.has("a")) mv.sub(right);
   if (keys.has("e") || vert.up) mv.y += 1;
-  if (keys.has("q") || vert.down) mv.y -= 1;
+  if (keys.has("shift") || vert.down) mv.y -= 1;
   if (joy.x || joy.y) { mv.addScaledVector(fwd, -joy.y); mv.addScaledVector(right, joy.x); }
   if (mv.lengthSq() > 0.0004) {
     fly = null;
-    const fast = keys.has("shift") || Math.hypot(joy.x, joy.y) > 0.92;
+    const fast = keys.has("q") || Math.hypot(joy.x, joy.y) > 0.92;
     const sp = (fast ? 40 : 14) * dt;
     if (mv.length() > 1) mv.normalize();
     mv.multiplyScalar(sp);
     camera.position.add(mv);
-    controls.target.add(mv);
   }
-  controls.update();
+  if (!fly) {
+    const a = 1 - Math.pow(0.0001, dt);          // weich nachziehen
+    look.yaw += (look.tYaw - look.yaw) * a;
+    look.pitch += (look.tPitch - look.pitch) * a;
+  }
+  camera.rotation.set(look.pitch, look.yaw, 0);
   animate(t);
-  const near = mobile ? 34 : 45;
+  const near = mobile ? 26 : 45;
   for (const o of tagObjs) {
     const d = o.position.distanceTo(camera.position);
     o.visible = showTags && d < near;
