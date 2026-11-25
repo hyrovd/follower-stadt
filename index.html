@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Follower-Stadt 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@600;800&display=swap">
+<style>
+  body { margin: 0; }
+  /* Layout: Vollbild-3D-Welt, Spiel-HUD oben, Orte-Leiste unten; PC = Tastatur-Hilfe rechts, Handy = Joystick + Hoch/Runter */
+  :root {
+    --sky: #4f9ef5;
+    --panel: rgba(34, 30, 48, 0.88);
+    --panel-solid: #221e30;
+    --line: rgba(255, 255, 255, 0.22);
+    --text: #ffffff;
+    --muted: #c9c4dd;
+    --gold: #ffcd32;
+    --grass: #5cc46a;
+    --font-display: "Fredoka", "Arial Rounded MT Bold", "Arial", sans-serif;
+    --font-body: "Nunito", "Arial", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--sky); color: var(--text); font-family: var(--font-body); -webkit-user-select: none; user-select: none; touch-action: none; }
+  #c { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+  .ui { position: fixed; z-index: 3; }
+  #hud {
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+    display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; align-items: center;
+  }
+  .pill { background: var(--panel); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .pill b { color: var(--gold); font-weight: 800; }
+  .pill.mayor b { font-family: var(--font-display); }
+  #mode { pointer-events: auto; margin-left: auto; background: var(--panel-solid); color: var(--text); border: 2px solid var(--line); border-radius: 999px; padding: 5px 12px; font: 800 13px var(--font-body); cursor: pointer; }
+  #mode:hover, #mode:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
+  #title { top: calc(56px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); pointer-events: none; }
+  #title h1 { margin: 0; font: 600 26px/1 var(--font-display); color: var(--text); text-shadow: 0 2px 0 rgba(34, 30, 48, 0.55); text-wrap: balance; }
+  #title p { margin: 4px 0 0; font-size: 12px; font-weight: 800; color: var(--text); text-shadow: 0 1px 0 rgba(34, 30, 48, 0.6); letter-spacing: 0.04em; text-transform: uppercase; }
+  #menu {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  #menu button { background: var(--panel); color: var(--text); border: 2px solid var(--line); border-radius: 12px; padding: 7px 11px; font: 800 13px var(--font-body); cursor: pointer; white-space: nowrap; }
+  #menu button:hover, #menu button:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
+  #menu button.on { border-color: var(--gold); color: var(--gold); }
+  #help { top: calc(56px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); background: var(--panel); border-radius: 12px; padding: 10px 14px; font-size: 12px; line-height: 1.7; max-width: 250px; pointer-events: none; }
+  #help b { color: var(--gold); }
+  .tag { background: rgba(34, 30, 48, 0.86); color: var(--text); padding: 3px 9px; border-radius: 9px; font: 800 13px var(--font-body); white-space: nowrap; }
+  .tag.gold { color: var(--gold); }
+  #load { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: var(--sky); font: 600 22px var(--font-display); color: var(--text); text-align: center; padding-inline: 16px; }
+  #load small { display: block; font: 800 13px var(--font-body); color: var(--text); opacity: 0.85; margin-top: 6px; }
+
+  /* ---------- Handy-Modus ---------- */
+  #stick, #updown { display: none; }
+  body.mobile #help { display: none; }
+  body.mobile #title { display: none; }
+  body.mobile .pill { font-size: 11px; padding: 4px 9px; }
+  body.mobile #menu {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px; touch-action: pan-x;
+  }
+  body.mobile #menu::-webkit-scrollbar { display: none; }
+  body.mobile #menu button { padding: 9px 12px; font-size: 13px; flex: 0 0 auto; }
+  body.mobile #stick {
+    display: block; left: max(18px, env(safe-area-inset-left, 0px)); bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    width: 128px; height: 128px; border-radius: 50%; background: var(--panel); border: 2px solid var(--line); touch-action: none;
+  }
+  #knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: var(--gold); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3); }
+  body.mobile #updown {
+    display: flex; flex-direction: column; gap: 10px; right: max(18px, env(safe-area-inset-right, 0px)); bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+  #updown button { width: 58px; height: 58px; border-radius: 16px; background: var(--panel); color: var(--text); border: 2px solid var(--line); font: 800 13px var(--font-body); touch-action: none; }
+  #updown button.on { border-color: var(--gold); color: var(--gold); }
+  @media (prefers-reduced-motion: reduce) { #knob { transition: none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+</head>
+<body>
+<canvas id="c" aria-label="3D-Welt der Follower-Stadt"></canvas>
+<div id="hud" class="ui">
+  <div class="pill">CITIZENS <b>56</b></div>
+  <div class="pill">MAYORS <b>2</b></div>
+  <div class="pill">CITY FUND <b>232K</b></div>
+  <div class="pill mayor">👑 @coco.fi13 <b>1.42M</b></div>
+  <div class="pill mayor">👑 @yourfav_lan12 <b>612K</b></div>
+  <button id="mode" type="button">📱 Handy</button>
+</div>
+<div id="title" class="ui"><h1>Follower-Stadt</h1><p>Part 7 · @thefolowercity</p></div>
+<div id="help" class="ui">
+  <b>Maus ziehen</b>: umschauen<br>
+  <b>Rechte Maus</b>: schieben · <b>Mausrad</b>: zoomen<br>
+  <b>W A S D</b>: fliegen · <b>Q / E</b>: runter / hoch<br>
+  <b>Shift</b>: schneller · <b>T</b>: Namen an/aus
+</div>
+<div id="stick" class="ui" aria-label="Joystick zum Fliegen"><div id="knob"></div></div>
+<div id="updown" class="ui"><button id="up" type="button" aria-label="hoch">▲ hoch</button><button id="down" type="button" aria-label="runter">▼ runter</button></div>
+<nav id="menu" class="ui" aria-label="Orte"></nav>
+<div id="load">Stadt wird gebaut…<small>56 Häuser, 2 Inseln, 1 Rennstrecke</small></div>
+
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+
+// ---------- Modus: PC oder Handy ----------
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+let mobile = store.get("modus") ? store.get("modus") === "handy" : (matchMedia("(pointer: coarse)").matches || innerWidth < 700);
+const modeBtn = document.getElementById("mode");
+
+const canvas = document.getElementById("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const labels = new CSS2DRenderer();
+Object.assign(labels.domElement.style, { position: "fixed", inset: "0", pointerEvents: "none", zIndex: "2" });
+document.body.appendChild(labels.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x8cc4ff, 140, 420);
+{
+  const cv = document.createElement("canvas");
+  cv.width = 2; cv.height = 256;
+  const cx = cv.getContext("2d");
+  const gr = cx.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, "#1d55d8"); gr.addColorStop(0.55, "#5aa2ff"); gr.addColorStop(1, "#bfe0ff");
+  cx.fillStyle = gr; cx.fillRect(0, 0, 2, 256);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  scene.background = tex;
+}
+
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.minDistance = 1.5;
+controls.maxDistance = 400;
+
+scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x6a8f4a, 1.1));
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
+sun.position.set(60, 110, 45);
+sun.castShadow = true;
+Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 10, far: 400 });
+sun.shadow.bias = -0.0004;
+sun.target.position.set(0, 0, -25);
+scene.add(sun, sun.target);
+
+const water = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000),
+  new THREE.MeshStandardMaterial({ color: 0x1690c4, roughness: 0.12, metalness: 0.15, transparent: true, opacity: 0.88 }));
+water.rotation.x = -Math.PI / 2; water.position.y = -0.55; water.receiveShadow = true;
+scene.add(water);
+const bed = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ color: 0x3c8c96 }));
+bed.rotation.x = -Math.PI / 2; bed.position.y = -3.0;
+scene.add(bed);
+
+function applyMode() {
+  document.body.classList.toggle("mobile", mobile);
+  modeBtn.textContent = mobile ? "💻 PC-Modus" : "📱 Handy-Modus";
+  renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2));
+  const sz = mobile ? 2048 : 4096;
+  if (sun.shadow.mapSize.x !== sz) {
+    sun.shadow.mapSize.set(sz, sz);
+    if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  }
+  camera.fov = mobile && innerHeight > innerWidth ? 65 : 55;
+  resize();
+}
+modeBtn.addEventListener("click", () => { mobile = !mobile; store.set("modus", mobile ? "handy" : "pc"); applyMode(); });
+
+const B = (x, y, z = 0) => new THREE.Vector3(x, z, -y);
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  labels.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+addEventListener("resize", resize);
+applyMode();
+
+let info, gltf;
+try {
+  [info, gltf] = await Promise.all([
+    fetch("welt.json").then((r) => r.json()),
+    new GLTFLoader().loadAsync("welt.glb"),
+  ]);
+} catch (e) {
+  document.getElementById("load").innerHTML = "Die Stadt konnte nicht geladen werden.<small>Bitte Seite neu laden.</small>";
+  throw e;
+}
+const world = gltf.scene;
+world.traverse((o) => {
+  if (o.isMesh) {
+    o.castShadow = true; o.receiveShadow = true;
+    for (const m of [].concat(o.material)) { m.flatShading = true; m.needsUpdate = true; }
+  }
+});
+scene.add(world);
+document.getElementById("load").remove();
+
+const S = info.S;
+const gb = (gx, gy, z = 0) => B(gx * S, gy * S, z);
+const toB = (v) => ({ x: v[0], y: -v[2], z: v[1] });
+const NI = toB(info.NI), CP = toB(info.CP);
+
+// ---------- Namensschilder ----------
+const tagObjs = [];
+for (const [p, name] of info.tags) {
+  const el = document.createElement("div");
+  el.className = "tag" + (name.startsWith("@") || name === "Burj Khalifa" ? " gold" : "");
+  el.textContent = name;
+  const o = new CSS2DObject(el);
+  o.position.set(p[0], p[1], p[2]);
+  scene.add(o);
+  tagObjs.push(o);
+}
+let showTags = true;
+
+// ---------- bewegte Teile ----------
+const cars = [0, 1, 2, 3].map((k) => world.getObjectByName("car" + k));
+const rider = world.getObjectByName("rider");
+const rope = world.getObjectByName("rope");
+const kid = world.getObjectByName("kid");
+const spray = world.getObjectByName("spray");
+for (let k = 0; k < 3; k++) { const r = world.getObjectByName("lampR" + k); if (r) r.visible = false; }
+
+function ovalPt(th, off) {
+  const x = info.TA * Math.cos(th), y = info.TB * Math.sin(th);
+  const nx = info.TB * Math.cos(th), ny = info.TA * Math.sin(th);
+  const nl = Math.hypot(nx, ny);
+  return { x: NI.x + x + off * nx / nl, y: NI.y + y + off * ny / nl };
+}
+function carState(k, t) {
+  const w = 1.15 + 0.06 * k;
+  const wob = 0.22 * Math.sin(t * 1.3 + k * 1.7);
+  const th = info.START_TH + 0.06 - 0.10 * (k % 2) - 0.05 * k + w * t * 0.75 + wob;
+  const p = ovalPt(th, info.LANES[k]), q = ovalPt(th + 0.01, info.LANES[k]);
+  return { p, h: Math.atan2(q.y - p.y, q.x - p.x) - Math.PI / 2 };
+}
+const smooth = (u) => { u = Math.max(0, Math.min(1, u)); return u * u * (3 - 2 * u); };
+const RIN = info.RIN, WZ = info.WZ;
+const PER = 2 * (2 * RIN[0] + 2 * RIN[1]);
+const S_TOP = 2 * RIN[0] + 2 * RIN[1];
+function riderState(s) {
+  s = ((s % PER) + PER) % PER;
+  const pts = [[-RIN[0], -RIN[1]], [RIN[0], -RIN[1]], [RIN[0], RIN[1]], [-RIN[0], RIN[1]]];
+  let qx = pts[0][0], qy = pts[0][1], hd = 0, rem = s;
+  for (let i = 0; i < 4; i++) {
+    const a = pts[i], b = pts[(i + 1) % 4];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (rem <= L) {
+      const dx = (b[0] - a[0]) / L, dy = (b[1] - a[1]) / L;
+      qx = a[0] + dx * rem; qy = a[1] + dy * rem; hd = Math.atan2(dy, dx) - Math.PI / 2;
+      break;
+    }
+    rem -= L;
+  }
+  let z = WZ, flip = 0, yaw = 0;
+  if (s >= S_TOP) {
+    const x = qx;
+    const { KICK_LO, KICK_HI, KICK_Z0, AIR_X1, RAIL_X0, RAIL_X1, RAIL_Z } = info;
+    if (x >= KICK_HI && x <= KICK_LO) {
+      z = Math.max(WZ, KICK_Z0 + 0.9 * (KICK_LO - x) / (KICK_LO - KICK_HI));
+    } else if (x >= AIR_X1 && x < KICK_HI) {
+      const u = (KICK_HI - x) / (KICK_HI - AIR_X1), lip = KICK_Z0 + 0.9;
+      z = lip + 4 * 2.6 * u * (1 - u) - (lip - WZ) * u;
+      flip = -2 * Math.PI * smooth(u);
+    } else if (x >= RAIL_X0 && x < AIR_X1) {
+      const u = (AIR_X1 - x) / (AIR_X1 - RAIL_X0);
+      z = WZ + (RAIL_Z + 0.05 - WZ) * Math.sin(u * Math.PI / 2) + 0.35 * Math.sin(u * Math.PI);
+      yaw = Math.PI / 2 * u;
+    } else if (x >= RAIL_X1 && x < RAIL_X0) {
+      z = RAIL_Z + 0.05; yaw = Math.PI / 2;
+    } else if (x >= RAIL_X1 - 0.8 && x < RAIL_X1) {
+      const u = (RAIL_X1 - x) / 0.8;
+      z = RAIL_Z + 0.05 + (WZ - RAIL_Z - 0.05) * u + 0.3 * Math.sin(u * Math.PI);
+      yaw = Math.PI / 2 * (1 - u);
+    }
+  }
+  return { x: CP.x + qx, y: CP.y + qy, z, flip, h: hd + yaw };
+}
+const UP = new THREE.Vector3(0, 1, 0);
+function animate(t) {
+  cars.forEach((c, k) => {
+    if (!c) return;
+    const st = carState(k, t);
+    c.position.copy(B(st.p.x, st.p.y, 0.05));
+    c.rotation.set(0, st.h, 0);
+  });
+  if (rider) {
+    const st = riderState(t * 6.0);
+    rider.position.copy(B(st.x, st.y, st.z));
+    rider.rotation.set(st.flip, st.h, 0, "YXZ");
+    rider.scale.setScalar(1.6);
+    if (spray) spray.visible = st.z < WZ + 0.05;
+    if (rope) {
+      const d = { x: -Math.sin(st.h), y: Math.cos(st.h) };
+      const hand = B(st.x, st.y, st.z + 1.3);
+      const top = B(st.x + d.x * 4.0, st.y + d.y * 4.0, 5.4);
+      const v = top.clone().sub(hand);
+      rope.position.copy(hand);
+      rope.quaternion.setFromUnitVectors(UP, v.clone().normalize());
+      rope.scale.set(1, v.length(), 1);
+    }
+  }
+  if (kid && info.slide.length) {
+    const ph = t % 2.2;
+    kid.visible = ph < 1.5;
+    if (kid.visible) {
+      const n = info.slide.length;
+      const q = info.slide[Math.min(n - 1, Math.floor(n * Math.pow(ph / 1.5, 1.4)))];
+      kid.position.set(q[0], q[1] + 0.05, q[2]);
+    }
+  }
+}
+
+// ---------- Orte ----------
+const GH = toB(info.gh), BAK = toB(info.bakery), BURJ = toB(info.burj);
+const PLACES = [
+  ["🏙️ Ganze Stadt", gb(26, -42, 95), gb(-3, 12, 0)],
+  ["🏛️ Rathaus", gb(5, -7, 12), gb(0, 0, 1.5)],
+  ["🏝️ Neue Insel", gb(14, 18, 26), B(NI.x, NI.y, 0)],
+  ["🏁 Rennstrecke", gb(-4.5, 32.4, 2.6), gb(2.5, 30.6, 0.5)],
+  ["🏰 Guard Hill", B(GH.x + 26, GH.y - 22, 16), B(GH.x, GH.y, 2)],
+  ["🥐 Bäckerei", B(BAK.x + 0.2, BAK.y - 5.5, BAK.z + 3.2), B(BAK.x, BAK.y, BAK.z + 1.2)],
+  ["🗼 Burj Khalifa", B(BURJ.x + 1.2, BURJ.y + 2.4, 0.9), B(BURJ.x, BURJ.y, 0.3)],
+  ["🏄 Cable Park", B(CP.x + 2.2, CP.y - 9, 4), B(CP.x, CP.y + RIN[1], 0.8)],
+  ["🏥 Krankenhaus", gb(1.6, -11.5, 6), gb(-2.4, -6.6, 2)],
+  ["🏨 Hotel", gb(4.6, 7.5, 6), gb(9, 3.6, 5)],
+  ["🌳 Baumhaus", gb(5.5, 8.5, 7), gb(1.9, 4.9, 1.6)],
+];
+let fly = null;
+const menu = document.getElementById("menu");
+PLACES.forEach(([name, pos, tgt], i) => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = name;
+  b.addEventListener("click", () => {
+    fly = { p0: camera.position.clone(), q0: controls.target.clone(), p1: pos.clone(), q1: tgt.clone(), t: 0 };
+    menu.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+  });
+  menu.appendChild(b);
+});
+camera.position.copy(mobile && innerHeight > innerWidth ? gb(22, -52, 120) : PLACES[0][1]);
+controls.target.copy(PLACES[0][2]);
+controls.update();
+
+// ---------- Steuerung: Tastatur (PC) ----------
+const keys = new Set();
+addEventListener("keydown", (e) => { const k = e.key.toLowerCase(); keys.add(k); if (k === "t") showTags = !showTags; });
+addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
+addEventListener("blur", () => keys.clear());
+
+// ---------- Steuerung: Joystick + Hoch/Runter (Handy) ----------
+const stick = document.getElementById("stick"), knob = document.getElementById("knob");
+const joy = { x: 0, y: 0, id: null };
+function joyMove(e) {
+  const r = stick.getBoundingClientRect();
+  let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  const max = r.width / 2 - 14, len = Math.hypot(dx, dy);
+  if (len > max) { dx *= max / len; dy *= max / len; }
+  knob.style.transform = `translate(${dx}px, ${dy}px)`;
+  joy.x = dx / max; joy.y = dy / max;
+}
+stick.addEventListener("pointerdown", (e) => { joy.id = e.pointerId; stick.setPointerCapture(e.pointerId); joyMove(e); e.preventDefault(); });
+stick.addEventListener("pointermove", (e) => { if (e.pointerId === joy.id) joyMove(e); });
+const joyEnd = (e) => { if (e.pointerId !== joy.id) return; joy.id = null; joy.x = joy.y = 0; knob.style.transform = ""; };
+stick.addEventListener("pointerup", joyEnd);
+stick.addEventListener("pointercancel", joyEnd);
+const vert = { up: false, down: false };
+for (const id of ["up", "down"]) {
+  const el = document.getElementById(id);
+  const on = (v) => (e) => { vert[id] = v; el.classList.toggle("on", v); if (e.cancelable) e.preventDefault(); };
+  el.addEventListener("pointerdown", on(true));
+  el.addEventListener("pointerup", on(false));
+  el.addEventListener("pointerleave", on(false));
+  el.addEventListener("pointercancel", on(false));
+}
+
+// ---------- Schleife ----------
+const clock = new THREE.Clock();
+const fwd = new THREE.Vector3(), right = new THREE.Vector3(), mv = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+  if (fly) {
+    fly.t += dt / 1.4;
+    const u = smooth(fly.t);
+    camera.position.lerpVectors(fly.p0, fly.p1, u);
+    controls.target.lerpVectors(fly.q0, fly.q1, u);
+    if (fly.t >= 1) fly = null;
+  }
+  camera.getWorldDirection(fwd);
+  fwd.y = 0; fwd.normalize();
+  right.crossVectors(fwd, UP).normalize();
+  mv.set(0, 0, 0);
+  if (keys.has("w")) mv.add(fwd);
+  if (keys.has("s")) mv.sub(fwd);
+  if (keys.has("d")) mv.add(right);
+  if (keys.has("a")) mv.sub(right);
+  if (keys.has("e") || vert.up) mv.y += 1;
+  if (keys.has("q") || vert.down) mv.y -= 1;
+  if (joy.x || joy.y) { mv.addScaledVector(fwd, -joy.y); mv.addScaledVector(right, joy.x); }
+  if (mv.lengthSq() > 0.0004) {
+    fly = null;
+    const fast = keys.has("shift") || Math.hypot(joy.x, joy.y) > 0.92;
+    const sp = (fast ? 40 : 14) * dt;
+    if (mv.length() > 1) mv.normalize();
+    mv.multiplyScalar(sp);
+    camera.position.add(mv);
+    controls.target.add(mv);
+  }
+  controls.update();
+  animate(t);
+  const near = mobile ? 34 : 45;
+  for (const o of tagObjs) {
+    const d = o.position.distanceTo(camera.position);
+    o.visible = showTags && d < near;
+    if (o.visible) o.element.style.opacity = String(Math.min(1, (near - d) / 10));
+  }
+  renderer.render(scene, camera);
+  labels.render(scene, camera);
+});
+</script>
+
+</body>
+</html>
