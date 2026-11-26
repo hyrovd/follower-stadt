@@ -96,15 +96,15 @@
 <body>
 <canvas id="c" aria-label="3D-Welt der Follower-Stadt"></canvas>
 <div id="hud" class="ui">
-  <div class="pill">CITIZENS <b>56</b></div>
+  <div class="pill">CITIZENS <b>76</b></div>
   <div class="pill">MAYORS <b>2</b></div>
-  <div class="pill">CITY FUND <b>7K</b></div>
-  <div class="pill mayor">👑 @coco.fi13 <b>966K</b></div>
-  <div class="pill mayor">👑 @yourfav_lan12 <b>662K</b></div>
+  <div class="pill">CITY FUND <b>13K</b></div>
+  <div class="pill mayor">👑 @coco.fi13 <b>1.438M</b></div>
+  <div class="pill mayor">👑 @yourfav_lan12 <b>1.434M</b></div>
   <button id="pause" type="button" aria-pressed="false">⏸ Pause</button>
   <button id="mode" type="button">📱 Handy</button>
 </div>
-<div id="title" class="ui"><h1>Follower-Stadt</h1><p>Part 8 · @thefolowercity</p></div>
+<div id="title" class="ui"><h1>Follower-Stadt</h1><p>Part 9 · @thefolowercity</p></div>
 <div id="help" class="ui">
   <b>Maus ziehen</b>: umschauen<br>
   <b>Mausrad</b>: vor / zurück · <b>Rechte Maus</b>: schieben<br>
@@ -115,7 +115,7 @@
 <div id="stick" class="ui" aria-label="Joystick zum Fliegen"><div id="knob"></div></div>
 <div id="updown" class="ui"><button id="up" type="button" aria-label="hoch">▲ hoch</button><button id="down" type="button" aria-label="runter">▼ runter</button></div>
 <nav id="menu" class="ui" aria-label="Orte"></nav>
-<div id="load">Stadt wird gebaut…<small>56 Häuser, 2 Inseln, Basketball, Fußball, Big Bass Shop</small></div>
+<div id="load">Stadt wird gebaut…<small>76 Häuser, 3 Inseln, Winter-Insel, Eisbahn, Weihnachten</small></div>
 
 <script type="module">
 import * as THREE from "three";
@@ -401,14 +401,13 @@ function animate(t) {
 const GH = toB(info.gh), BAK = toB(info.bakery), BURJ = toB(info.burj);
 const BB = toB(info.bb), FB = toB(info.fb), BS = toB(info.bs), VI = toB(info.villa), GU = toB(info.gu);
 const PLACES = [
-  ["🏙️ Ganze Stadt", gb(26, -42, 95), gb(-3, 12, 0)],
+  ["🏙️ Ganze Stadt", gb(40, -40, 110), gb(8, 14, 0)],
   ["🏛️ Rathaus", gb(5, -7, 12), gb(0, 0, 1.5)],
   ["🏝️ Neue Insel", gb(14, 18, 26), B(NI.x, NI.y, 0)],
   ["🏁 Rennstrecke", gb(-4.5, 32.4, 2.6), gb(2.5, 30.6, 0.5)],
   ["🏀 Basketball", B(BB.x - 0.6, BB.y - 5.4, 2.6), B(BB.x + 1.2, BB.y, 1.0)],
   ["⚽ Fußball", B(FB.x + 0.6, FB.y - 5.2, 2.4), B(FB.x - 2.2, FB.y, 0.3)],
   ["🎣 Big Bass Shop", B(BS.x + 10, BS.y - 4.5, 2.8), B(BS.x + 1, BS.y, 1.8)],
-  ["🚁 Villa coco", B(VI.x + 2.5, VI.y + 7, 10.5), B(VI.x, VI.y, 4.8)],
   ["🏠 guransh", B(GU.x + 2.6, GU.y + 7.5, 4), B(GU.x, GU.y, 2.2)],
   ["🏰 Guard Hill", B(GH.x + 26, GH.y - 22, 16), B(GH.x, GH.y, 2)],
   ["🥐 Bäckerei", B(BAK.x + 0.2, BAK.y - 5.5, BAK.z + 3.2), B(BAK.x, BAK.y, BAK.z + 1.2)],
@@ -418,6 +417,11 @@ const PLACES = [
   ["🏨 Hotel", gb(4.6, 7.5, 6), gb(9, 3.6, 5)],
   ["🌳 Baumhaus", gb(5.5, 8.5, 7), gb(1.9, 4.9, 1.6)],
 ];
+// Part 9: neue Orte (Winter-Insel, Weihnachten ...) kommen aus welt.json, nach "Ganze Stadt" einsortiert
+for (const [n, pp, tt] of (info.places9 || []).slice().reverse()) {
+  const P = toB(pp), T = toB(tt);
+  PLACES.splice(1, 0, [n, B(P.x, P.y, P.z), B(T.x, T.y, T.z)]);
+}
 const menu = document.getElementById("menu");
 PLACES.forEach(([name, pos, tgt], i) => {
   const b = document.createElement("button");
