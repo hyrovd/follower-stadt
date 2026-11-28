@@ -98,16 +98,16 @@
 <body>
 <canvas id="c" aria-label="3D-Welt der Follower-Stadt"></canvas>
 <div id="hud" class="ui">
-  <div class="pill">CITIZENS <b>76</b></div>
+  <div class="pill">CITIZENS <b>78</b></div>
   <div class="pill">MAYORS <b>2</b></div>
-  <div class="pill">CITY FUND <b>13K</b></div>
-  <div class="pill mayor">👑 @coco.fi13 <b>1.438M</b></div>
-  <div class="pill mayor">👑 @yourfav_lan12 <b>1.434M</b></div>
+  <div class="pill">CITY FUND <b>4K</b></div>
+  <div class="pill mayor">👑 @coco.fi13 <b>400K</b></div>
+  <div class="pill mayor">👑 @yourfav_lan12 <b>1.546M</b></div>
   <img id="visits" src="https://hits.sh/hyrovd.github.io/follower-stadt.svg?label=Besucher&amp;color=f5b800&amp;labelColor=22202f&amp;style=flat-square" alt="Besucherzähler" referrerpolicy="no-referrer">
   <button id="pause" type="button" aria-pressed="false">⏸ Pause</button>
   <button id="mode" type="button">📱 Handy</button>
 </div>
-<div id="title" class="ui"><h1>Follower-Stadt</h1><p>Part 9 · @thefolowercity</p></div>
+<div id="title" class="ui"><h1>Follower-Stadt</h1><p>Part 10 · @thefolowercity</p></div>
 <div id="help" class="ui">
   <b>Maus ziehen</b>: umschauen<br>
   <b>Mausrad</b>: vor / zurück · <b>Rechte Maus</b>: schieben<br>
@@ -118,7 +118,7 @@
 <div id="stick" class="ui" aria-label="Joystick zum Fliegen"><div id="knob"></div></div>
 <div id="updown" class="ui"><button id="up" type="button" aria-label="hoch">▲ hoch</button><button id="down" type="button" aria-label="runter">▼ runter</button></div>
 <nav id="menu" class="ui" aria-label="Orte"></nav>
-<div id="load">Stadt wird gebaut…<small>76 Häuser, 3 Inseln, Winter-Insel, Eisbahn, Weihnachten</small></div>
+<div id="load">Stadt wird gebaut…<small>78 Häuser, Leuchtturm, Bäckerei, cocos Geheimnis …</small></div>
 
 <script type="module">
 import * as THREE from "three";
@@ -422,6 +422,11 @@ const PLACES = [
 ];
 // Part 9: neue Orte (Winter-Insel, Weihnachten ...) kommen aus welt.json, nach "Ganze Stadt" einsortiert
 for (const [n, pp, tt] of (info.places9 || []).slice().reverse()) {
+  const P = toB(pp), T = toB(tt);
+  PLACES.splice(1, 0, [n, B(P.x, P.y, P.z), B(T.x, T.y, T.z)]);
+}
+// Part 10: Leuchtturm, Baeckerei, 5 Stockwerke, Pool-Haus, cocos Geheimnis (ganz vorne)
+for (const [n, pp, tt] of (info.places10 || []).slice().reverse()) {
   const P = toB(pp), T = toB(tt);
   PLACES.splice(1, 0, [n, B(P.x, P.y, P.z), B(T.x, T.y, T.z)]);
 }
